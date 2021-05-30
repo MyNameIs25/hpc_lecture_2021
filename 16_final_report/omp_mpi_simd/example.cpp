@@ -1,4 +1,5 @@
 #include <mpi.h>
+#include <omp.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
@@ -39,10 +40,18 @@ int main(int argc, char** argv) {
   for(int irank=0; irank<size; irank++) {
     auto tic = chrono::steady_clock::now();
     offset = N/size*((rank+irank) % size);
+  float temp;
+   #pragma omp parallel shared(subA,subB,subC)
+    {
+    #pragma omp for simd reduction(+:temp) schedule(dynamic)
     for (int i=0; i<N/size; i++)
-      for (int j=0; j<N/size; j++)
+      for (int j=0; j<N/size; j++){
+        temp = 0;
         for (int k=0; k<N; k++)
-          subC[N*i+j+offset] += subA[N*i+k] * subB[N/size*k+j];
+          temp += subA[N*i+k] * subB[N/size*k+j];
+        subC[N*i+j+offset] = temp;
+        }
+    }
     auto toc = chrono::steady_clock::now();
     comp_time += chrono::duration<double>(toc - tic).count();
     MPI_Send(&subB[0], N*N/size, MPI_FLOAT, send_to, 0, MPI_COMM_WORLD);
